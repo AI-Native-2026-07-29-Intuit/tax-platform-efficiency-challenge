@@ -1,0 +1,15 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.idea/
+*.iml
+*.log
+.DS_Store
+
+# ---------------------------------------------------------------------------
+# Facilitator / solution content — kept locally, NEVER pushed. This repo is
+# shared with SWE1 candidates.
+# ---------------------------------------------------------------------------
+SOLUTIONS.md
+CHALLENGE.md
+clues/
+scripts/optimized-index.sql

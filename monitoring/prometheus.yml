@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: tax-app
+    metrics_path: /actuator/prometheus
+    # Scrapes every app replica via Docker DNS (returns all task IPs).
+    dns_sd_configs:
+      - names: ["app"]
+        type: A
+        port: 8080
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]

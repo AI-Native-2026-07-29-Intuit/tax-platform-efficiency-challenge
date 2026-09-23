@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: tax-platform
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:taxdb}
+    username: ${DB_USER:tax}
+    password: ${DB_PASSWORD:tax}
+    hikari:
+      pool-name: tax-pool
+      maximum-pool-size: ${HIKARI_MAX_POOL:50}
+      minimum-idle: ${HIKARI_MIN_IDLE:10}
+      connection-timeout: 10000
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    show-sql: ${SHOW_SQL:false}
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 20
+        format_sql: false
+        generate_statistics: ${HIBERNATE_STATS:false}
+  cache:
+    type: ${CACHE_TYPE:none}
+    cache-names: taxRules
+    caffeine:
+      spec: maximumSize=50000,expireAfterWrite=10m
+
+server:
+  port: 8080
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:200}
+
+# Simulated external "product classification" dependency called during a
+# tax calculation.
+app:
+  external:
+    classify-latency-ms: ${CLASSIFY_LATENCY_MS:8}
+  batch:
+    default-limit: 100
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: tax-platform
+
+logging:
+  level:
+    root: INFO
+    # Set to DEBUG (or SHOW_SQL=true) to log every SQL statement Hibernate emits.
+    org.hibernate.SQL: ${SQL_LOG_LEVEL:INFO}
+    org.hibernate.orm.jdbc.bind: INFO

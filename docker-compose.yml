@@ -1,0 +1,122 @@
+# ============================================================================
+# Tax Platform - Efficiency Challenge stack
+#
+#   lb (nginx)  ->  app x N  ->  db (postgres)
+#
+# Scaling & resource limits are driven by the .env file:
+#   .env            starting config : 4 instances x 4 CPU x 8 GB
+#   .env.cost-cut   reduced config  : 2 instances x 2 CPU x 4 GB
+#
+# Start:            docker compose up -d --build
+# Cost-cut:         docker compose --env-file .env.cost-cut up -d
+# With monitoring:  docker compose --profile monitoring up -d --build
+# ============================================================================
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${DB_NAME:-taxdb}
+      POSTGRES_USER: ${DB_USER:-tax}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-tax}
+      # Dataset sizing (see db/seed.sh). Override to shrink for a laptop.
+      SEED_CITIES: ${SEED_CITIES:-1000}
+      SEED_VERSIONS: ${SEED_VERSIONS:-6}
+      SEED_CUSTOMERS: ${SEED_CUSTOMERS:-500000}
+      SEED_TRANSACTIONS: ${SEED_TRANSACTIONS:-5000000}
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=${DB_MAX_CONNECTIONS:-250}"
+      - "-c"
+      - "shared_buffers=512MB"
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./db/seed.sh:/docker-entrypoint-initdb.d/02-seed.sh:ro
+      - ./db/seed.sql:/seed/seed.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Host-side port is configurable to avoid clashing with a local Postgres.
+      - "${DB_PUBLISH_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-tax} -d ${DB_NAME:-taxdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    deploy:
+      resources:
+        limits:
+          cpus: "${DB_CPUS:-4}"
+          memory: ${DB_MEM:-4g}
+
+  app:
+    build: .
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-taxdb}
+      DB_USER: ${DB_USER:-tax}
+      DB_PASSWORD: ${DB_PASSWORD:-tax}
+      HIKARI_MAX_POOL: ${HIKARI_MAX_POOL:-50}
+      HIKARI_MIN_IDLE: ${HIKARI_MIN_IDLE:-10}
+      CLASSIFY_LATENCY_MS: ${CLASSIFY_LATENCY_MS:-8}
+      CACHE_TYPE: ${CACHE_TYPE:-none}
+      SHOW_SQL: ${SHOW_SQL:-false}
+      SQL_LOG_LEVEL: ${SQL_LOG_LEVEL:-INFO}
+      HIBERNATE_STATS: ${HIBERNATE_STATS:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8080"
+    deploy:
+      replicas: ${APP_REPLICAS:-4}
+      resources:
+        limits:
+          cpus: "${APP_CPUS:-4}"
+          memory: ${APP_MEM:-8g}
+
+  lb:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./monitoring/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "${LB_PUBLISH_PORT:-8080}:80"
+    depends_on:
+      - app
+
+  # ---- Optional observability (docker compose --profile monitoring up) ------
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["monitoring"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - app
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    profiles: ["monitoring"]
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${DB_USER:-tax}:${DB_PASSWORD:-tax}@db:5432/${DB_NAME:-taxdb}?sslmode=disable"
+    depends_on:
+      - db
+
+  grafana:
+    image: grafana/grafana:latest
+    profiles: ["monitoring"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+    volumes:
+      - ./monitoring/grafana-datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  pgdata:
