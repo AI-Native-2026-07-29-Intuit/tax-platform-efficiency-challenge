@@ -10,13 +10,21 @@ spring:
       maximum-pool-size: ${HIKARI_MAX_POOL:50}
       minimum-idle: ${HIKARI_MIN_IDLE:10}
       connection-timeout: 10000
+      # Let the app start even if the DB is momentarily unavailable (e.g. still
+      # finishing its first-run seed); connections are acquired lazily.
+      initialization-fail-timeout: -1
   jpa:
     hibernate:
       ddl-auto: none
     open-in-view: false
     show-sql: ${SHOW_SQL:false}
+    # Set the dialect explicitly so startup does not require a live JDBC
+    # connection to introspect metadata.
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
       hibernate:
+        temp:
+          use_jdbc_metadata_defaults: false
         jdbc:
           time_zone: UTC
           batch_size: 20

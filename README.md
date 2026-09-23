@@ -119,6 +119,21 @@ SEED_TRANSACTIONS=500000 SEED_CUSTOMERS=50000 docker compose up -d --build
 - **Changed `SEED_*` but the dataset didn't change** — seed sizes only apply to
   an empty volume. Run `make clean` then `make up` to reseed.
 
+## Measurement notes
+
+Absolute numbers depend heavily on the host, so compare **before vs after on the
+same machine** rather than chasing a universal number:
+
+- **Docker Desktop (macOS/Windows)** runs the DB on a virtualized filesystem
+  where `fsync` is slow. Per-request commit latency dominates, which caps
+  throughput and inflates the P95 **tail** (the median can be ~10ms while P95 is
+  hundreds of ms). On native Linux / real NVMe the same code goes much further.
+- Run `k6` from a machine (or core set) that isn't already saturated by the app
+  and DB, so the load generator isn't the bottleneck.
+- The k6 thresholds (`p95<500`, `>800 rps`) express the **goal**; treat a
+  threshold breach as "not there yet," and use the relative improvement plus
+  `make verify` (correctness) as the real signal.
+
 ## Repo layout
 
 ```
