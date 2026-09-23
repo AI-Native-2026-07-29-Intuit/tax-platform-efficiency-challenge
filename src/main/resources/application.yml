@@ -7,8 +7,10 @@ spring:
     password: ${DB_PASSWORD:tax}
     hikari:
       pool-name: tax-pool
-      maximum-pool-size: ${HIKARI_MAX_POOL:50}
-      minimum-idle: ${HIKARI_MIN_IDLE:10}
+      # FIX (Problem 5): right-sized pool. A small pool on a few-core DB beats a
+      # bloated one (fewer context switches, lower DB CPU, higher throughput).
+      maximum-pool-size: ${HIKARI_MAX_POOL:15}
+      minimum-idle: ${HIKARI_MIN_IDLE:5}
       connection-timeout: 10000
       # Let the app start even if the DB is momentarily unavailable (e.g. still
       # finishing its first-run seed); connections are acquired lazily.
@@ -31,7 +33,8 @@ spring:
         format_sql: false
         generate_statistics: ${HIBERNATE_STATS:false}
   cache:
-    type: ${CACHE_TYPE:none}
+    # FIX (Problem 3): local cache enabled for the static tax-rule lookups.
+    type: ${CACHE_TYPE:caffeine}
     cache-names: taxRules
     caffeine:
       spec: maximumSize=50000,expireAfterWrite=10m

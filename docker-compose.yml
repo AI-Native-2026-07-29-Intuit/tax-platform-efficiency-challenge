@@ -30,6 +30,11 @@ services:
       - "max_connections=${DB_MAX_CONNECTIONS:-250}"
       - "-c"
       - "shared_buffers=512MB"
+      # BONUS: relax per-commit fsync durability. On virtualized disks the
+      # commit fsync is the throughput ceiling; this is the single biggest
+      # lever. Tradeoff: a crash can lose the last <1s of committed history.
+      - "-c"
+      - "synchronous_commit=${DB_SYNCHRONOUS_COMMIT:-off}"
     volumes:
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./db/seed.sh:/docker-entrypoint-initdb.d/02-seed.sh:ro

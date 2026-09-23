@@ -38,8 +38,11 @@ CREATE TABLE tax_rules (
     jurisdiction_id BIGINT,
     effective_from TIMESTAMPTZ  NOT NULL
 );
-CREATE INDEX idx_tax_rules_state ON tax_rules(state);
-CREATE INDEX idx_tax_rules_city  ON tax_rules(city);
+-- FIX (Problem 1): composite covering index matching the exact access pattern
+-- WHERE state=? AND city=? AND product_type=? ORDER BY effective_from DESC.
+-- Collapses the Bitmap Heap Scan + Sort into a single-row index scan.
+CREATE INDEX idx_tax_rule_lookup
+    ON tax_rules (state, city, product_type, effective_from DESC);
 
 CREATE TABLE customers (
     id         BIGINT PRIMARY KEY,
